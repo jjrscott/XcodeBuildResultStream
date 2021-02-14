@@ -1,5 +1,5 @@
-Some time ago Apple added JSON build output to `xcodebuild` in the form of the `-resultStreamPath` parameter.
-Unfortunately, one can't just `-resultStreamPath -` to replace the STDOUT with a nice stream of JSON fragments so I've created this little wrapper to capture the file stream and show a summary.
+Some time ago, Apple added JSON build output to `xcodebuild` in the form of the `-resultStreamPath` parameter.
+Unfortunately, one can't just `-resultStreamPath -` to replace the STDOUT with a nice stream of JSON fragments, so I've created this little wrapper to capture the file stream and show a summary. Additionally, I have submitted FB9004441 to request that xcodebuild support `-resultStreamPath -` directly.
 
 Run `./xcodebuild.py -scheme HelloWorld` to get the following output:
 
