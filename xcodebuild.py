@@ -28,59 +28,59 @@ import re
 import subprocess
 import json
 import sys
-
-did_get_results = False
+import uuid
+import select
 
 def main():
     args = sys.argv
     args[0] = 'xcodebuild'
 
-    build_path = 'build'
+    descriptor_for_reading, descriptor_to_give_to_xcodebuild_for_writing = os.pipe() # new file descriptor read , fd write
 
-    system('rm', '-rf', build_path)
+    args += ['-resultBundlePath', '/tmp/' + str(uuid.uuid1()) + 'xcresult']
+    args += ['-resultStreamPath', f'/dev/fd/{descriptor_to_give_to_xcodebuild_for_writing}']
 
-    result_stream_path = os.path.join(build_path, 'ResultStream.json')
+    result_stream = open(descriptor_for_reading)
 
-    args += ['-resultBundlePath', os.path.join(build_path, 'Result.xcresult')]
-    args += ['-resultStreamPath', result_stream_path]
-    args += ['-derivedDataPath', build_path]
+    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, pass_fds=[descriptor_to_give_to_xcodebuild_for_writing])
+    os.close(descriptor_to_give_to_xcodebuild_for_writing)
 
-    system('mkdir', '-p', build_path)
-    system('touch', result_stream_path)
+    lines_read = 0
+    while True:
+        lines_read += read_lines(result_stream, blocking=False)
+        try:
+            process.wait(timeout=1)
+            # print(process.returncode)
+            break
+        except subprocess.TimeoutExpired:
+            pass
+    lines_read += read_lines(result_stream, blocking=True)
+    result_stream.close()
 
-    args += ['-resultBundleVersion', '3']
-
-    process_stdout_path = os.path.join(build_path, 'StandardOut.txt')
-    process_stderr_path = os.path.join(build_path, 'StandardError.txt')
-    system('touch', process_stdout_path)
-    system('touch', process_stderr_path)
-
-    command = " ".join(map(lambda arg:shlex.quote(arg), args))
-    print(u"\u001b[1mSystem\u001b[0m"+' '+command)
-
-    process = subprocess.Popen(args, stdout=open(process_stdout_path, 'wb'), stderr=open(process_stderr_path, 'wb'))
-
-    with open(result_stream_path, 'r') as results_stream:
-        while True:
-            read_lines(results_stream)
-            try:
-                process.wait(timeout=1)
-                break
-            except subprocess.TimeoutExpired:
-                pass
-        read_lines(results_stream)
-
-    if not did_get_results:
-        with open(process_stderr_path, 'r') as process_stderr:
-            while line := process_stderr.readline():
-                line = line.replace('xcodebuild: error:', u"\u001b[1m\u001b[31mError\u001b[0m")
-                print(line, end='')
+    if lines_read == 0:
+        while line := process.stderr.readline().decode():
+            line = line.rstrip().replace('xcodebuild: error:', u"\u001b[1m\u001b[31mError\u001b[0m")
+            if len(line):
+                print(line)
         # print(u"\u001b[1m\u001b[31mFailed\u001b[0m")
+    exit(process.returncode)
 
-def read_lines(fp):
-    global did_get_results
-    while line := fp.readline():
-        did_get_results = True
+def readline(file, blocking=True):
+    # print('>', file, blocking)
+    ready = True
+    if not blocking:
+        ready = select.select([file], [], [], 1)[0]
+
+    line = None
+    if ready:
+        line = file.readline()
+    # print('<', file, blocking)
+    return line
+
+def read_lines(fp, blocking=True):
+    lines_read = 0
+    while line := readline(fp, blocking=blocking):
+        lines_read += 1
         # print(line, end='')
         data = json.loads(line)
         if data['name']['_value'] == 'issueEmitted':
@@ -97,8 +97,6 @@ def read_lines(fp):
                 color = u"\u001b[31m"
             else:
                 color = u"\u001b[44m"
-
-
             print(u"\u001b[1m"+color+issueType+u"\u001b[0m"+' '+message)
         elif data['name']['_value'] == 'logMessageEmitted':
             pass
@@ -129,12 +127,6 @@ def read_lines(fp):
             # print(re.sub('\n?$', '\n', json.dumps(data['structuredPayload']['tail'], sort_keys=True, indent=2)))
         elif data['name']['_value'] not in ['invocationStarted', 'actionStarted', 'logSectionAttached', 'logSectionClosed', 'invocationFinished']:
             print(data['name']['_value'])
-
-def system(*args):
-    command = " ".join(map(lambda arg:shlex.quote(arg), args))
-    print(u"\u001b[1mSystem\u001b[0m"+' '+command)
-    result = subprocess.run(args)
-    if result.returncode != 0:
-        exit(result)
+    return lines_read
 
 main()
