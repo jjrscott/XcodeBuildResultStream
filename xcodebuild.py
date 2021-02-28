@@ -74,7 +74,7 @@ def readline(file, blocking=True):
 
 def print_line(prefix, line, color=30):
     line = line.rstrip()
-    print(f'\u001b[1m\u001b[{color}m{prefix}\u001b[0m {line}')
+    print(f'\u001b[1;{color}m{prefix}\u001b[0m {line}')
 
 def read_stream(fp, blocking=True):
     lines_read = 0
@@ -89,14 +89,15 @@ def read_stream(fp, blocking=True):
             issueType = data['structuredPayload']['issue']['issueType']['_value']
             message = data['structuredPayload']['issue']['message']['_value']
 
-            color = 30
-            if severity == 'warning':
-                color = 33
-            elif severity == 'error':
-                color = 31
+            if severity in {'warning'}:
+                print_line(issueType, message, color=33)
+            elif severity in {'error'}:
+                print_line(issueType, message, color=31)
+            elif severity in {'testFailure'}:
+                pass
             else:
-                color = 44
-            print_line(issueType, message, color=color)
+                exit(re.sub('\n?$', '\n', json.dumps(data, sort_keys=True, indent=2)))
+
         elif data['name']['_value'] == 'logMessageEmitted':
             pass
             # print(data['name']['_value'], data['structuredPayload']['message']['title']['_value'])
@@ -112,6 +113,21 @@ def read_stream(fp, blocking=True):
         elif data['name']['_value'] == 'logTextAppended':
             pass
             # print(data['name']['_value'], data['structuredPayload']['text']['_value'].rstrip())
+        elif data['name']['_value'] == 'testSuiteStarted':
+            print_line('Test Suite Started', data['structuredPayload']['testIdentifier']['identifier']['_value'])
+        elif data['name']['_value'] == 'testStarted':
+            print_line('Test', data['structuredPayload']['testIdentifier']['identifier']['_value'])
+        elif data['name']['_value'] == 'testFinished':
+            test_identifier = data['structuredPayload']['test']['identifier']['_value']
+            test_status = data['structuredPayload']['test']['testStatus']['_value']
+            if test_status in {'Success'}:
+                print_line(test_status, test_identifier, color=32)
+            elif test_status in {'Failure'}:
+                print_line(test_status, test_identifier, color=31)
+            else:
+                exit(re.sub('\n?$', '\n', json.dumps(data['structuredPayload']['test']['testStatus'], sort_keys=True, indent=2)))
+        elif data['name']['_value'] == 'testSuiteFinished':
+            pass
         elif data['name']['_value'] == 'actionFinished':
             continue
             status = data['structuredPayload']['tail']['buildResult']['status']['_value']
@@ -124,8 +140,8 @@ def read_stream(fp, blocking=True):
                 print_line(status.upper(), '', color=45)
             # print(re.sub('\n?$', '\n', json.dumps(data['structuredPayload']['tail'], sort_keys=True, indent=2)))
         elif data['name']['_value'] not in ['invocationStarted', 'actionStarted', 'logSectionAttached', 'logSectionClosed', 'invocationFinished']:
-            print(re.sub('\n?$', '\n', json.dumps(data, sort_keys=True, indent=2)))
-            # print(data['name']['_value'])
+            exit(re.sub('\n?$', '\n', json.dumps(data, sort_keys=True, indent=2)))
+            print(data['name']['_value'])
     return lines_read
 
 main()
