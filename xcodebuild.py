@@ -47,26 +47,22 @@ def main():
 
     lines_read = 0
     while True:
-        lines_read += read_lines(result_stream, blocking=False)
+        lines_read += read_stream(result_stream, blocking=False)
         try:
             process.wait(timeout=1)
-            # print(process.returncode)
             break
         except subprocess.TimeoutExpired:
             pass
-    lines_read += read_lines(result_stream, blocking=True)
+    lines_read += read_stream(result_stream, blocking=True)
     result_stream.close()
 
     if lines_read == 0:
         while line := process.stderr.readline().decode():
-            line = line.rstrip().replace('xcodebuild: error:', u"\u001b[1m\u001b[31mError\u001b[0m")
-            if len(line):
-                print(line)
-        # print(u"\u001b[1m\u001b[31mFailed\u001b[0m")
+            if match := re.match(r'xcodebuild: error: *([^\n]+)', line):
+                print_line('Error', match.group(1), color=31)
     exit(process.returncode)
 
 def readline(file, blocking=True):
-    # print('>', file, blocking)
     ready = True
     if not blocking:
         ready = select.select([file], [], [], 1)[0]
@@ -74,10 +70,13 @@ def readline(file, blocking=True):
     line = None
     if ready:
         line = file.readline()
-    # print('<', file, blocking)
     return line
 
-def read_lines(fp, blocking=True):
+def print_line(prefix, line, color=30):
+    line = line.rstrip()
+    print(f'\u001b[1m\u001b[{color}m{prefix}\u001b[0m {line}')
+
+def read_stream(fp, blocking=True):
     lines_read = 0
     while line := readline(fp, blocking=blocking):
         lines_read += 1
@@ -90,23 +89,25 @@ def read_lines(fp, blocking=True):
             issueType = data['structuredPayload']['issue']['issueType']['_value']
             message = data['structuredPayload']['issue']['message']['_value']
 
-            color = ''
+            color = 30
             if severity == 'warning':
-                color = u"\u001b[33m"
+                color = 33
             elif severity == 'error':
-                color = u"\u001b[31m"
+                color = 31
             else:
-                color = u"\u001b[44m"
-            print(u"\u001b[1m"+color+issueType+u"\u001b[0m"+' '+message)
+                color = 44
+            print_line(issueType, message, color=color)
         elif data['name']['_value'] == 'logMessageEmitted':
             pass
             # print(data['name']['_value'], data['structuredPayload']['message']['title']['_value'])
         elif data['name']['_value'] == 'logSectionCreated':
+            # print(re.sub('\n?$', '\n', json.dumps(data, sort_keys=True, indent=2)))
             title = data['structuredPayload']['head']['title']['_value']
             if match := re.match(r"^Run custom shell script '(.*?)'$", title):
                 title = 'Script '+match.groups(0)[0]
             words = title.split(' ', 1)
-            print(u"\u001b[1m"+words[0]+u"\u001b[0m"+' '+words[1])
+            if len(words) > 1:
+                print_line(words[0], words[1])
             # print(data['structuredPayload']['head']['title']['_value'])
         elif data['name']['_value'] == 'logTextAppended':
             pass
@@ -115,18 +116,16 @@ def read_lines(fp, blocking=True):
             continue
             status = data['structuredPayload']['tail']['buildResult']['status']['_value']
 
-            message = ''
-
             if status == 'succeeded':
-                message = u"\u001b[1m\u001b[32mSucceeded\u001b[0m"
+                print_line('Succeeded', '', color=32)
             elif status == 'failed':
-                message = u"\u001b[1m\u001b[31mFailed\u001b[0m"
+                print_line('Failed', '', color=31)
             else:
-                message = u"\u001b[1m\u001b[45m"+status.upper()+u"\u001b[0m"
-            print(message)
+                print_line(status.upper(), '', color=45)
             # print(re.sub('\n?$', '\n', json.dumps(data['structuredPayload']['tail'], sort_keys=True, indent=2)))
         elif data['name']['_value'] not in ['invocationStarted', 'actionStarted', 'logSectionAttached', 'logSectionClosed', 'invocationFinished']:
-            print(data['name']['_value'])
+            print(re.sub('\n?$', '\n', json.dumps(data, sort_keys=True, indent=2)))
+            # print(data['name']['_value'])
     return lines_read
 
 main()
