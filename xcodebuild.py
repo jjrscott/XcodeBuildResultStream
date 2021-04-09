@@ -42,7 +42,7 @@ def main():
 
     result_stream = open(descriptor_for_reading)
 
-    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, pass_fds=[descriptor_to_give_to_xcodebuild_for_writing])
+    process = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, pass_fds=[descriptor_to_give_to_xcodebuild_for_writing])
     os.close(descriptor_to_give_to_xcodebuild_for_writing)
 
     lines_read = 0
