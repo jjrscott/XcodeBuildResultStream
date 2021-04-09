@@ -82,66 +82,69 @@ def read_stream(fp, blocking=True):
         lines_read += 1
         # print(line, end='')
         data = json.loads(line)
-        if data['name']['_value'] == 'issueEmitted':
-            # print(re.sub('\n?$', '\n', json.dumps(data['structuredPayload'], sort_keys=True, indent=2)))
-
-            severity = data['structuredPayload']['severity']['_value']
-            issueType = data['structuredPayload']['issue']['issueType']['_value']
-            message = data['structuredPayload']['issue']['message']['_value']
-
-            if severity in {'warning'}:
-                print_line(issueType, message, color=33)
-            elif severity in {'error'}:
-                print_line(issueType, message, color=31)
-            elif severity in {'testFailure'}:
-                pass
-            else:
-                exit(re.sub('\n?$', '\n', json.dumps(data, sort_keys=True, indent=2)))
-
-        elif data['name']['_value'] == 'logMessageEmitted':
-            pass
-            # print(data['name']['_value'], data['structuredPayload']['message']['title']['_value'])
-        elif data['name']['_value'] == 'logSectionCreated':
-            # print(re.sub('\n?$', '\n', json.dumps(data, sort_keys=True, indent=2)))
-            title = data['structuredPayload']['head']['title']['_value']
-            if match := re.match(r"^Run custom shell script '(.*?)'$", title):
-                title = 'Script '+match.groups(0)[0]
-            words = title.split(' ', 1)
-            if len(words) > 1:
-                print_line(words[0], words[1])
-            # print(data['structuredPayload']['head']['title']['_value'])
-        elif data['name']['_value'] == 'logTextAppended':
-            pass
-            # print(data['name']['_value'], data['structuredPayload']['text']['_value'].rstrip())
-        elif data['name']['_value'] == 'testSuiteStarted':
-            print_line('Test Suite Started', data['structuredPayload']['testIdentifier']['identifier']['_value'])
-        elif data['name']['_value'] == 'testStarted':
-            print_line('Test', data['structuredPayload']['testIdentifier']['identifier']['_value'])
-        elif data['name']['_value'] == 'testFinished':
-            test_identifier = data['structuredPayload']['test']['identifier']['_value']
-            test_status = data['structuredPayload']['test']['testStatus']['_value']
-            if test_status in {'Success'}:
-                print_line(test_status, test_identifier, color=32)
-            elif test_status in {'Failure'}:
-                print_line(test_status, test_identifier, color=31)
-            else:
-                exit(re.sub('\n?$', '\n', json.dumps(data['structuredPayload']['test']['testStatus'], sort_keys=True, indent=2)))
-        elif data['name']['_value'] == 'testSuiteFinished':
-            pass
-        elif data['name']['_value'] == 'actionFinished':
-            continue
-            status = data['structuredPayload']['tail']['buildResult']['status']['_value']
-
-            if status == 'succeeded':
-                print_line('Succeeded', '', color=32)
-            elif status == 'failed':
-                print_line('Failed', '', color=31)
-            else:
-                print_line(status.upper(), '', color=45)
-            # print(re.sub('\n?$', '\n', json.dumps(data['structuredPayload']['tail'], sort_keys=True, indent=2)))
-        elif data['name']['_value'] not in ['invocationStarted', 'actionStarted', 'logSectionAttached', 'logSectionClosed', 'invocationFinished']:
-            exit(re.sub('\n?$', '\n', json.dumps(data, sort_keys=True, indent=2)))
-            print(data['name']['_value'])
+        handle_line(data)
     return lines_read
+
+def handle_line(data):
+    if data['name']['_value'] == 'issueEmitted':
+        # print(re.sub('\n?$', '\n', json.dumps(data['structuredPayload'], sort_keys=True, indent=2)))
+
+        severity = data['structuredPayload']['severity']['_value']
+        issueType = data['structuredPayload']['issue']['issueType']['_value']
+        message = data['structuredPayload']['issue']['message']['_value']
+
+        if severity in {'warning'}:
+            print_line(issueType, message, color=33)
+        elif severity in {'error'}:
+            print_line(issueType, message, color=31)
+        elif severity in {'testFailure'}:
+            pass
+        else:
+            exit(re.sub('\n?$', '\n', json.dumps(data, sort_keys=True, indent=2)))
+
+    elif data['name']['_value'] == 'logMessageEmitted':
+        pass
+        # print(data['name']['_value'], data['structuredPayload']['message']['title']['_value'])
+    elif data['name']['_value'] == 'logSectionCreated':
+        # print(re.sub('\n?$', '\n', json.dumps(data, sort_keys=True, indent=2)))
+        title = data['structuredPayload']['head']['title']['_value']
+        if match := re.match(r"^Run custom shell script '(.*?)'$", title):
+            title = 'Script '+match.groups(0)[0]
+        words = title.split(' ', 1)
+        if len(words) > 1:
+            print_line(words[0], words[1])
+        # print(data['structuredPayload']['head']['title']['_value'])
+    elif data['name']['_value'] == 'logTextAppended':
+        pass
+        # print(data['name']['_value'], data['structuredPayload']['text']['_value'].rstrip())
+    elif data['name']['_value'] == 'testSuiteStarted':
+        print_line('Test Suite Started', data['structuredPayload']['testIdentifier']['identifier']['_value'])
+    elif data['name']['_value'] == 'testStarted':
+        print_line('Test', data['structuredPayload']['testIdentifier']['identifier']['_value'])
+    elif data['name']['_value'] == 'testFinished':
+        test_identifier = data['structuredPayload']['test']['identifier']['_value']
+        test_status = data['structuredPayload']['test']['testStatus']['_value']
+        if test_status in {'Success'}:
+            print_line(test_status, test_identifier, color=32)
+        elif test_status in {'Failure'}:
+            print_line(test_status, test_identifier, color=31)
+        else:
+            exit(re.sub('\n?$', '\n', json.dumps(data['structuredPayload']['test']['testStatus'], sort_keys=True, indent=2)))
+    elif data['name']['_value'] == 'testSuiteFinished':
+        pass
+    elif data['name']['_value'] == 'actionFinished':
+        return
+        status = data['structuredPayload']['tail']['buildResult']['status']['_value']
+
+        if status == 'succeeded':
+            print_line('Succeeded', '', color=32)
+        elif status == 'failed':
+            print_line('Failed', '', color=31)
+        else:
+            print_line(status.upper(), '', color=45)
+        # print(re.sub('\n?$', '\n', json.dumps(data['structuredPayload']['tail'], sort_keys=True, indent=2)))
+    elif data['name']['_value'] not in ['invocationStarted', 'actionStarted', 'logSectionAttached', 'logSectionClosed', 'invocationFinished']:
+        exit(re.sub('\n?$', '\n', json.dumps(data, sort_keys=True, indent=2)))
+        print(data['name']['_value'])
 
 main()
